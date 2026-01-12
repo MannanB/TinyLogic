@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
-from .config import MicroLMConfig
+from .config import TinyLogicLMConfig
 from .model import load_model
 from .dataset import build_llm_dataset
 
@@ -42,7 +42,7 @@ def _prepare_tokenizer():
     return tok
 
 
-def train(run: wandb.Run, cfg: MicroLMConfig):
+def train(run: wandb.Run, cfg: TinyLogicLMConfig):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_fp16 = False # FP16 is too unstable for now (probably need to tune more hyperparameters)
     tokenizer = _prepare_tokenizer()
