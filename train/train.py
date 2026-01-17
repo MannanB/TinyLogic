@@ -35,7 +35,7 @@ def _create_scheduler(optimizer, num_steps: int, warmup_ratio: float = 0.02):
 
 
 def _prepare_tokenizer():
-    tok = AutoTokenizer.from_pretrained("./tokenizer/hf_tokenizer")
+    tok = AutoTokenizer.from_pretrained("./train/tokenizer/hf_tokenizer")
     tok.padding_side = "right"
     if tok.pad_token_id is None and tok.eos_token_id is not None:
         tok.pad_token = tok.eos_token
@@ -160,3 +160,6 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
 
 
     return model
+
+if __name__ == "__main__":
+    train(None, TinyLogicLMConfig())

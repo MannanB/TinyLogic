@@ -7,3 +7,4 @@ def main(run, config):
     cfg = TinyLogicLMConfig(**config)
 
     train(run, cfg)
+
