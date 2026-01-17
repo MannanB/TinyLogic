@@ -18,7 +18,9 @@ from .dataset import build_llm_dataset
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
 import wandb, os
+from pathlib import Path
 
+# Get the absolute path to the current file
 
 def _create_scheduler(optimizer, num_steps: int, warmup_ratio: float = 0.02):
     warmup_steps = max(1, int(num_steps * warmup_ratio))
@@ -35,7 +37,9 @@ def _create_scheduler(optimizer, num_steps: int, warmup_ratio: float = 0.02):
 
 
 def _prepare_tokenizer():
-    tok = AutoTokenizer.from_pretrained(os.getcwd() + "/train/tokenizer/hf_tokenizer")
+    file_path = Path(__file__).resolve()
+    tokenizer_path = file_path.parent / "train" / "tokenizer" / "hf_tokenizer"
+    tok = AutoTokenizer.from_pretrained(tokenizer_path)
     tok.padding_side = "right"
     if tok.pad_token_id is None and tok.eos_token_id is not None:
         tok.pad_token = tok.eos_token
