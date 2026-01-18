@@ -39,7 +39,7 @@ def _create_scheduler(optimizer, num_steps: int, warmup_ratio: float = 0.02):
 def _prepare_tokenizer():
     file_path = Path(__file__).resolve()
     tokenizer_path = file_path.parent / "tokenizer" / "hf_tokenizer"
-    tok = AutoTokenizer.from_pretrained(tokenizer_path)
+    tok = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
     tok.padding_side = "right"
     if tok.pad_token_id is None and tok.eos_token_id is not None:
         tok.pad_token = tok.eos_token

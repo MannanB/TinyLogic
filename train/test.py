@@ -2,10 +2,12 @@
 import argparse
 import json
 import torch
-from transformers import T5TokenizerFast
+from transformers import AutoTokenizer
 
 from .config import TinyLogicLMConfig
 from .model import load_model
+from pathlib import Path
+
 
 # python -m container.projects.microlm.test --config-path ./inputs/microlm-50m.json --weights-path ./microlm.pt --prompt "test prompt haha" --max-new-tokens 256
 
@@ -16,10 +18,12 @@ def load_cfg(path: str) -> TinyLogicLMConfig:
 
 
 def prepare_tokenizer():
-    tok = T5TokenizerFast.from_pretrained("t5-base")
+    file_path = Path(__file__).resolve()
+    tokenizer_path = file_path.parent / "tokenizer" / "hf_tokenizer"
+    tok = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tok.padding_side = "right"
     if tok.pad_token_id is None and tok.eos_token_id is not None:
         tok.pad_token = tok.eos_token
-    tok.padding_side = "left"  # safer for autoregressive decoding
     return tok
 
 
