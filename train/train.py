@@ -120,7 +120,7 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
             loss.backward()
             micro_step += 1
 
-            if global_step % 50 == 0:
+            if global_step % 500 == 0:
                 # Save model weights
                 model_path = os.path.join("./out", f"microlm-{global_step}.pt")
                 torch.save(model.state_dict(), model_path)
