@@ -9,12 +9,12 @@
         "github_zip_url": "https://github.com/MannanB/TinyLogic/archive/refs/heads/main.zip",
         "github_entrypoint": "train", 
         "config": {
-            "hidden_size": 256,
-            "intermediate_size": 512,
-            "num_hidden_layers": 12,
-            "num_attention_heads": 8,
+            "hidden_size": 24,
+            "intermediate_size": 48,
+            "num_hidden_layers": 4,
+            "num_attention_heads": 2,
             "num_key_value_heads": 2,
-            "head_dim": 16,
+            "head_dim": 2,
             "dropout_rate": 0.05,
 
             "chunk_size": 2048,
@@ -36,7 +36,7 @@
             "warmup_ratio": 0.02,
 
             "hf_token": "",
-            "hf_dataset_name": "tinylogicds-500m"
+            "hf_dataset_name": "MannanB/tinylogicds-500m"
         }
     }
 }

@@ -213,7 +213,8 @@ def build_llm_dataset(cfg, tokenizer, fallback_tokenizer=None, split="train", st
     if cfg.hf_dataset_name is not None:
         try:
             return load_dataset(cfg.hf_dataset_name, split=split)
-        except Exception:
+        except Exception as e:
+            print(e)
             pass  # fall through and rebuild
 
     sources = {

@@ -84,7 +84,7 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
     pbar = tqdm(total=total_steps, desc="train", leave=False)
     os.makedirs("./out", exist_ok=True)
 
-    causal = torch.ones(cfg.chunk_size, cfg.chunk_size, dtype=torch.bool).tril_()
+    causal = torch.ones(cfg.chunk_size, cfg.chunk_size, dtype=torch.bool).tril_().to(device)
 
     grad_norm = 0.0
     with torch.nn.attention.sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION,
@@ -97,7 +97,9 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
                 data_iter = iter(dataloader)
                 batch = next(data_iter)
 
-            batch = {k: v.to(device) for k, v in batch.items()}
+            dtype_map = {"input_ids": torch.long, "seg_ids": torch.int32}
+            batch = {k: torch.tensor(v, dtype=dtype_map[k]).to(device) for k, v in batch.items()}
+
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_fp16):
                 outputs = model(
                     input_ids=batch["input_ids"],
@@ -167,4 +169,15 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
     return model
 
 if __name__ == "__main__":
-    train(None, TinyLogicLMConfig())
+    from .config import TinyLogicLMConfig
+    import argparse, json
+    from transformers import AutoTokenizer
+    from pathlib import Path
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--cfg", type=str, required=True)
+    args = p.parse_args()
+
+    with open(args.cfg) as f:
+        cfg = TinyLogicLMConfig(**(json.load(f)["input"]["config"]))
+    train(None, cfg)
