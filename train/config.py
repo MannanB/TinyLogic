@@ -32,5 +32,6 @@ class TinyLogicLMConfig(BaseModel):
     warmup_ratio: float = 0.02
 
     hf_token: Optional[str] = None  # HuggingFace token if needed
+    hf_dataset_name: Optional[str] = None
 
     test_samples_dataset: Optional[int] = None

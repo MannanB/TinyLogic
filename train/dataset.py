@@ -3,7 +3,10 @@ import itertools
 from collections import deque
 
 import torch
-from datasets import load_dataset, IterableDataset, disable_caching
+from datasets import load_dataset, IterableDataset, disable_caching, Dataset
+import os
+from tqdm import tqdm
+import tempfile
 
 disable_caching()
 
@@ -55,6 +58,7 @@ class _TokenSource:
         split: str,
         streaming: bool,
         tokenizer,
+        fallback_tokenizer,
         seed: int,
         *,
         shuffle_buffer: int,
@@ -67,6 +71,7 @@ class _TokenSource:
         self.split = split
         self.streaming = streaming
         self.tokenizer = tokenizer
+        self.fallback_tokenizer = fallback_tokenizer
         self.seed = seed
 
         self.shuffle_buffer = shuffle_buffer
@@ -140,6 +145,16 @@ class _TokenSource:
             return_attention_mask=False,
             return_token_type_ids=False,
         )
+        if (self.tokenizer.unk_token_id in enc):
+            print("Falling back")
+            enc = self.fallback_tokenizer(
+                texts,
+                add_special_tokens=False,
+                padding=False,
+                truncation=False,
+                return_attention_mask=False,
+                return_token_type_ids=False,
+            )
         for ids in enc["input_ids"]:
             if len(ids) < self.min_doc_tokens:
                 continue
@@ -193,7 +208,14 @@ def _build_block_diag_causal_mask(seg_ids: torch.Tensor, causal: torch.Tensor) -
     return m.unsqueeze(1)
 
 
-def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
+def build_llm_dataset(cfg, tokenizer, fallback_tokenizer=None, split="train", streaming=True, seed=42):
+    # ---- fast path: load cached HF dataset if provided ----
+    if cfg.hf_dataset_name is not None:
+        try:
+            return load_dataset(cfg.hf_dataset_name, split=split)
+        except Exception:
+            pass  # fall through and rebuild
+
     sources = {
         "tinystories": cfg.percent_tinystories,
         "math": cfg.percent_math,
@@ -205,19 +227,17 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
     names = [k for k, v in sources.items() if v > 0]
     weights = [sources[n] for n in names]
     if not names:
-        raise ValueError("No dataset sources enabled (all percents are 0).")
+        raise ValueError("No dataset sources enabled.")
 
-    # Same batching math as your original code.
     total_batches = cfg.total_tokens // (cfg.batch_size * cfg.chunk_size)
-
-    # Precompute causal once.
     causal = torch.ones(cfg.chunk_size, cfg.chunk_size, dtype=torch.bool).tril_()
 
-    # Tunables (optional cfg attrs, with safe defaults)
-    shuffle_buffer = getattr(cfg, "shuffle_buffer", 1_000)     # for HF streaming shuffle
-    batch_texts = getattr(cfg, "tokenize_batch_texts", 64)      # tokenizer batch size
+    shuffle_buffer = getattr(cfg, "shuffle_buffer", 1_000)
+    batch_texts = getattr(cfg, "tokenize_batch_texts", 256)
     min_doc_tokens = getattr(cfg, "min_doc_tokens", 1)
-    max_doc_tokens = getattr(cfg, "max_doc_tokens", cfg.chunk_size * 8)  # cap pathological huge docs
+    max_doc_tokens = getattr(cfg, "max_doc_tokens", cfg.chunk_size * 8)
+
+    print("total batches:", total_batches)
 
     def generator():
         rng = random.Random(seed)
@@ -228,12 +248,13 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
                 split=split,
                 streaming=streaming,
                 tokenizer=tokenizer,
+                fallback_tokenizer=fallback_tokenizer,
                 seed=seed + (hash(name) & 0xFFFF_FFFF),
                 shuffle_buffer=shuffle_buffer,
                 batch_texts=batch_texts,
                 max_doc_tokens=max_doc_tokens,
                 min_doc_tokens=min_doc_tokens,
-                chunk_overlap=getattr(cfg, "chunk_overlap", 0),
+                chunk_overlap=cfg.chunk_overlap,
             )
             for name in names
         }
@@ -241,8 +262,7 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
         produced = 0
 
         while produced < total_batches:
-            batch_tokens = []
-            batch_segids = []
+            batch_tokens, batch_segids = [], []
 
             for _ in range(cfg.batch_size):
                 tokens = [0] * cfg.chunk_size
@@ -255,23 +275,18 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
                     name = rng.choices(names, weights=weights, k=1)[0]
                     src = streams[name]
 
-                    remaining = cfg.chunk_size - pos
-                    piece, ended_doc = src.take_up_to(remaining)
-
-                    n = len(piece)
-                    if n == 0:
+                    piece, ended = src.take_up_to(cfg.chunk_size - pos)
+                    if not piece:
                         continue
 
-                    tokens[pos : pos + n] = piece
-                    segids[pos : pos + n] = (seg,) * n
+                    n = len(piece)
+                    tokens[pos:pos+n] = piece
+                    segids[pos:pos+n] = (seg,) * n
                     pos += n
 
-                    # If we hit the sequence boundary mid-doc, keep overlap for next time.
-                    if pos >= cfg.chunk_size and not ended_doc:
+                    if pos >= cfg.chunk_size and not ended:
                         src.rewind_overlap_if_mid_doc()
 
-                    # Every appended piece is a new "chunk"/segment for attention isolation.
-                    # (Even if you picked the same dataset again later, it shouldn't cross-attend.)
                     seg += 1
 
                 batch_tokens.append(tokens)
@@ -279,12 +294,52 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
 
             input_ids = torch.tensor(batch_tokens, dtype=torch.long)
             seg_ids = torch.tensor(batch_segids, dtype=torch.int32)
-            block_mask = _build_block_diag_causal_mask(seg_ids, causal)
+            # block_mask = _build_block_diag_causal_mask(seg_ids, causal)
 
             produced += 1
-            yield {
-                "input_ids": input_ids,
-                "block_mask": block_mask,
-            }
+            yield {"input_ids": input_ids, "seg_ids": seg_ids}
 
-    return IterableDataset.from_generator(generator)
+    ds = IterableDataset.from_generator(generator)
+
+    # ---- materialize + upload if requested ----
+    if cfg.hf_dataset_name is not None:
+        if cfg.hf_token is not None:
+            os.environ["HF_TOKEN"] = cfg.hf_token
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ds = Dataset.from_generator(
+                generator,
+                writer_batch_size=64,        # batches per write (small = low RAM)
+                cache_dir=tmpdir,
+            )
+
+            ds.save_to_disk(tmpdir, max_shard_size="2gb")
+            ds = Dataset.load_from_disk(tmpdir)
+
+            ds.push_to_hub(cfg.hf_dataset_name)
+            return ds
+    return ds
+
+
+def main():
+    from .config import TinyLogicLMConfig
+    import argparse, json
+    from transformers import AutoTokenizer
+    from pathlib import Path
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--cfg", type=str, required=True)
+    args = p.parse_args()
+
+    with open(args.cfg) as f:
+        cfg = TinyLogicLMConfig(**(json.load(f)["input"]["config"]))
+
+    file_path = Path(__file__).resolve()
+    tokenizer_path = file_path.parent / "tokenizer" / "hf_tokenizer"
+    tokenizerSlow = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=False)
+    tokenizerFast = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=True)
+
+    _ = build_llm_dataset(cfg, tokenizerFast, tokenizerSlow)
+
+if __name__ == "__main__":
+    main()

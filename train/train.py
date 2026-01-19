@@ -124,7 +124,6 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
                     run.save(model_path, policy="now")
 
 
-
             if micro_step % cfg.grad_accum_steps == 0:
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0).item()
                 optimizer.step()
