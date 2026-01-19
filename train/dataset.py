@@ -117,6 +117,7 @@ class _TokenSource:
         self._get_text = get_text
 
     def _refill_docs(self):
+        eos = self.tokenizer.eos_token_id
         # Pull a batch of texts; restart if exhausted.
         texts = []
         while len(texts) < self.batch_texts:
@@ -144,6 +145,7 @@ class _TokenSource:
                 continue
             if len(ids) > self.max_doc_tokens:
                 ids = ids[: self.max_doc_tokens]
+            ids.append(eos)
             self._pending_docs.append(ids)
 
     def _ensure_current_doc(self):
@@ -212,8 +214,8 @@ def build_llm_dataset(cfg, tokenizer, split="train", streaming=True, seed=42):
     causal = torch.ones(cfg.chunk_size, cfg.chunk_size, dtype=torch.bool).tril_()
 
     # Tunables (optional cfg attrs, with safe defaults)
-    shuffle_buffer = getattr(cfg, "shuffle_buffer", 10_000)     # for HF streaming shuffle
-    batch_texts = getattr(cfg, "tokenize_batch_texts", 32)      # tokenizer batch size
+    shuffle_buffer = getattr(cfg, "shuffle_buffer", 1_000)     # for HF streaming shuffle
+    batch_texts = getattr(cfg, "tokenize_batch_texts", 64)      # tokenizer batch size
     min_doc_tokens = getattr(cfg, "min_doc_tokens", 1)
     max_doc_tokens = getattr(cfg, "max_doc_tokens", cfg.chunk_size * 8)  # cap pathological huge docs
 
