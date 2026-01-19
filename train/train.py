@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from .config import TinyLogicLMConfig
 from .model import load_model
-from .dataset import build_llm_dataset
+from .dataset import build_llm_dataset, _build_block_diag_causal_mask
 
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
@@ -84,6 +84,8 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
     pbar = tqdm(total=total_steps, desc="train", leave=False)
     os.makedirs("./out", exist_ok=True)
 
+    causal = torch.ones(cfg.chunk_size, cfg.chunk_size, dtype=torch.bool).tril_()
+
     grad_norm = 0.0
     with torch.nn.attention.sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION,
                                           SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]) if torch.cuda.is_available() else torch.enable_grad():
@@ -99,7 +101,7 @@ def train(run: wandb.Run, cfg: TinyLogicLMConfig):
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_fp16):
                 outputs = model(
                     input_ids=batch["input_ids"],
-                    attention_mask=batch["block_mask"],
+                    attention_mask=_build_block_diag_causal_mask(batch["seg_ids"], causal),
                 )
             logits = outputs.logits.float()  # [B, S, V]
 
