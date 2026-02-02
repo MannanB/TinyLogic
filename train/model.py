@@ -1,7 +1,8 @@
 ﻿
 from transformers import Gemma3Config, Gemma3ForCausalLM, Gemma3TextConfig
 from .config import TinyLogicLMConfig
-
+from huggingface_hub import hf_hub_download
+import torch
 
 def load_model(
     tinyLMConfig: TinyLogicLMConfig,
@@ -9,6 +10,8 @@ def load_model(
     pad_token_id: int = 0,
     eos_token_id: int = 1,
     bos_token_id: int = 2,
+    load_from_hf: bool = False,
+    hf_load_path: str = "MannanB/tinylogic-base",
 ):
     text_config = Gemma3TextConfig(  # note tied word embeddings
         vocab_size=vocab_size,
@@ -29,5 +32,15 @@ def load_model(
     model = Gemma3ForCausalLM(text_config)
 
     print(f"Model loaded with {sum(p.numel() for p in model.parameters() if p.requires_grad)} trainable parameters.")
+
+    if load_from_hf:
+        # Load weights from HuggingFace Hub
+        hf_path = hf_hub_download(
+            repo_id=hf_load_path,
+            filename="model.pt",
+        )
+        state = torch.load(hf_path, map_location="cpu")
+        model.load_state_dict(state, strict=False)
+        print("Model weights loaded from HuggingFace Hub.")
 
     return model

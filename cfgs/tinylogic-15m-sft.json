@@ -9,8 +9,6 @@
         "github_zip_url": "https://github.com/MannanB/TinyLogic/archive/refs/heads/main.zip",
         "github_entrypoint": "train", 
         "config": {
-            "training_mode": "pretrain",
-
             "hidden_size": 384,
             "intermediate_size": 1536,
             "num_hidden_layers": 12,
@@ -21,7 +19,7 @@
 
             "chunk_size": 2048,
             "chunk_overlap": 128,
-            "total_tokens": 500000000,
+            "total_tokens": 8000000,
             "batch_size": 12,
             "grad_accum_steps": 11,
 
@@ -38,7 +36,7 @@
             "warmup_ratio": 0.02,
 
             "hf_token": "",
-            "hf_dataset_name": "MannanB/tinylogicds-500m"
+            "hf_dataset_name": "MannanB/tinylogic-sft-conversations"
         }
     }
 }

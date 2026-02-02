@@ -1,3 +1,4 @@
 synth
 __pycache__
 out/*
+train/*.json

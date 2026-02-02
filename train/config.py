@@ -3,6 +3,7 @@
 from typing import Optional
 
 class TinyLogicLMConfig(BaseModel):
+    training_mode: str = "pretrain"  # "pretrain" or "sft"
     # Model
     model_name: str = "tinylogic-base"
     hidden_size: int = 256
