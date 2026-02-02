@@ -95,7 +95,7 @@ def patch_vocab(model: torch.nn.Module, tokenizer: AutoTokenizer):
         model.lm_head.weight = model.model.embed_tokens.weight
 
 
-def train(run: wandb.Run, load_path: str, cfg: TinyLogicLMConfig):
+def train(run: wandb.Run, cfg: TinyLogicLMConfig):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_fp16 = False # FP16 is too unstable for now (probably need to tune more hyperparameters)
     tokenizer = _prepare_tokenizer()
@@ -106,7 +106,7 @@ def train(run: wandb.Run, load_path: str, cfg: TinyLogicLMConfig):
         pad_token_id=tokenizer.pad_token_id,
         eos_token_id=tokenizer.eos_token_id or tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id or tokenizer.eos_token_id or tokenizer.pad_token_id,
-        load_from_hf=not (load_path is None),
+        load_from_hf=True,
         hf_load_path="MannanB/tinylogic-base",
     ).to(device).to(torch.float16 if use_fp16 else torch.float32)
 

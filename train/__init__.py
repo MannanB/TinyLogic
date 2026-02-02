@@ -9,6 +9,6 @@ def main(run, config):
 
         train(run, cfg)
     elif cfg.training_mode == "sft":
-        from .SFT import sft_train
-        sft_train(run, './train/out_microlm.pt', cfg)
+        from .SFT import train
+        train(run, cfg)
 
