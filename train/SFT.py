@@ -33,7 +33,7 @@ def patch_vocab(model: torch.nn.Module, tokenizer: AutoTokenizer):
     - model.lm_head is nn.Linear (no bias)
     """
 
-    special_tokens = ["<|im_start|>", "<|im_end|>"]
+    special_tokens = ["<|im_start|>", "<|im_end|>", "assistant", "user"]
 
     # 1. Add tokens to tokenizer
     num_added = tokenizer.add_special_tokens(

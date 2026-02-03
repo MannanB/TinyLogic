@@ -41,11 +41,11 @@ def build_chat_llm_dataset(
     # Patch tokenizer for chat tokens
     # ------------------------------------------------------------
     tokenizer.add_special_tokens(
-        {"additional_special_tokens": ["<|im_start|>", "<|im_end|>"]}
+        {"additional_special_tokens": ["<|im_start|>", "<|im_end|>", "assistant", "user"]}
     )
     if fallback_tokenizer is not None:
         fallback_tokenizer.add_special_tokens(
-            {"additional_special_tokens": ["<|im_start|>", "<|im_end|>"]}
+            {"additional_special_tokens": ["<|im_start|>", "<|im_end|>", "assistant", "user"]}
         )
     eos = tokenizer.eos_token_id
 
